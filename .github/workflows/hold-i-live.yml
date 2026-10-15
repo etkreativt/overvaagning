@@ -1,0 +1,24 @@
+# GitHub slår planlagte kørsler fra i offentlige repoer efter 60 dage uden aktivitet.
+# En tom commit den 1. i hver måned holder overvågningen i gang.
+name: Hold i live
+
+on:
+  schedule:
+    - cron: '17 6 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  hold-i-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tom commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "Hold i live"
+          git push

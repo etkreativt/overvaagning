@@ -1,0 +1,47 @@
+# Overvågning af portal.etkreativt.dk (et kreativt bureau): tjekker /health hvert 5. minut og sender SMS via GatewayAPI,
+# når portalen er nede 2 kørsler i træk, én gang mere efter en time, og når den svarer igen.
+# Logikken ligger i scripts/overvaagning.mjs (med tests). Repoet er offentligt, så GitHub-minutterne er gratis; det
+# indeholder ingen kode fra portalen og ingen nøgler.
+# Secrets (Settings > Secrets and variables > Actions): GATEWAYAPI_TOKEN og ALERT_PHONE. Står aldrig i filerne.
+# hold-i-live.yml laver en tom commit hver måned, så GitHub ikke slår planlagte kørsler fra efter 60 dage uden aktivitet.
+# Slå fra: Actions > Overvågning > "..." > Disable workflow (eller gh workflow disable overvaagning.yml).
+name: Overvågning
+
+on:
+  schedule:
+    - cron: '2-59/5 * * * *' # hvert 5. minut, forskudt fra hel time, hvor GitHub oftest forsinker kørsler
+  workflow_dispatch:
+    inputs:
+      simuler_nede:
+        description: 'Test: behandl portalen som nede (2 testkørsler i træk sender en rigtig SMS)'
+        type: boolean
+        default: false
+
+# actions: read er til at slå de forrige kørslers udfald op (det er overvågningens hukommelse)
+permissions:
+  contents: read
+  actions: read
+
+# én kørsel ad gangen, så to kørsler aldrig læser den samme historik
+concurrency:
+  group: overvaagning
+  cancel-in-progress: false
+
+jobs:
+  tjek:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5 # 3 forsøg mod GitHub og GatewayAPI kan tage ca. 3 minutter i værste fald
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/overvaagning.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      # Navnet bruges af scriptet (TJEK_TRIN): kun når dette trin fejler, tæller kørslen som nede
+      - name: Tjek portalen
+        run: node scripts/overvaagning.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GATEWAYAPI_TOKEN: ${{ secrets.GATEWAYAPI_TOKEN }}
+          ALERT_PHONE: ${{ secrets.ALERT_PHONE }}
+          SIMULER_NEDE: ${{ inputs.simuler_nede }}
